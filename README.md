@@ -1,6 +1,6 @@
 # Giọng chị Google trên ETS2/ATS trên TruckersMP
 
-Tài liệu này hướng dẫn cách sử dụng script tự động để cài đặt nhanh FMOD Navigation Voice Mod cho Euro Truck Simulator 2 (ETS2) và American Truck Simulator (ATS) trên TruckersMP.
+Cách sử dụng script tự động để cài đặt nhanh FMOD Navigation Voice Mod cho Euro Truck Simulator 2 (ETS2) và American Truck Simulator (ATS) trên TruckersMP.
 
 ## Chuẩn bị trước khi cài đặt
 
