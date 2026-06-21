@@ -27,3 +27,7 @@ Bạn có thể chạy cài đặt bằng **PowerShell** (Khuyến nghị) hoặ
 ```bash
 ./scripts/install.sh
 ```
+
+## Quan trọng: Sau khi cài xong và vào game
+- Cần phải cài đặt lại audio phần Voice navigation như sau
+![](./assets/voice_nav.png)
