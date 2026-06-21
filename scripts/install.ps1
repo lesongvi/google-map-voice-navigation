@@ -1,13 +1,14 @@
-# Script written by @lesongvi for HG Logistics navigation voice mod
+﻿# Script written by @lesongvi for HG Logistics navigation voice mod
 # Website: https://truckers.vn
 # This script will download the latest version of ts-fmod-plugin.dll and copy it to the ETS2 and ATS game directories.
 
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 $ConfigFile = Join-Path $PSScriptRoot "..\configs\conf.ini"
 
 if (-not (Test-Path $ConfigFile)) {
-    Write-Error "Error: Configuration file missing at $ConfigFile"
+    Write-Error "Lỗi: Tệp cấu hình bị thiếu tại $ConfigFile"
     Exit 1
 }
 
@@ -29,13 +30,26 @@ function Set-IniValue($key, $value) {
     }
 }
 
+function Get-GameVersion($GameRoot, $GameCode) {
+    $ExeName = if ($GameCode -eq "ETS2") { "eurotrucks2.exe" } else { "amtrucks.exe" }
+    $ExePath = Join-Path $GameRoot "bin\win_x64\$ExeName"
+    
+    if (Test-Path $ExePath) {
+        $FullVersion = (Get-ItemProperty -Path $ExePath).VersionInfo.FileVersion.Trim()
+        
+        $VersionParts = $FullVersion.Split('.')
+        return "$($VersionParts[0]).$($VersionParts[1])"
+    }
+    return "Unknown"
+}
+
 function Prompt-ForRootDirectory($GameName, $IniKey) {
     Add-Type -AssemblyName System.Windows.Forms
     $FolderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog
-    $FolderBrowser.Description = "Select the root installation folder for $GameName (the directory containing the 'bin' folder)"
+    $FolderBrowser.Description = "Chọn thư mục cài đặt gốc cho $GameName (thư mục chứa 'bin')"
     $FolderBrowser.ShowNewFolderButton = $false
     
-    Write-Host "$GameName path not set or invalid. Opening folder picker..." -ForegroundColor Yellow
+    Write-Host "Đường dẫn $GameName chưa được thiết lập hoặc không hợp lệ. Mở hộp thoại chọn thư mục..." -ForegroundColor Yellow
     
     $Process = Get-Process -Id $PID
     $Window = New-Object System.Windows.Forms.NativeWindow
@@ -64,9 +78,43 @@ $FmodPluginUrl = "$HostUrl/plugins/ts-fmod-plugin/$Version/ts-fmod-plugin.dll"
 function Install-Mod($GameName, $GameRoot, $GameCode) {
     $PluginDir = Join-Path $GameRoot "bin\win_x64\plugins"
     $TargetDir = Join-Path $PluginDir "ts-fmod-plugin"
+
+    $LocalGameVer = Get-GameVersion $GameRoot $GameCode
+
+    Write-Host "----------------------------------------"
+    Write-Host "Kiểm tra khả năng tương thích cho $GameName..."
+    Write-Host "Phiên bản game: $LocalGameVer" -ForegroundColor Cyan
+
+    $RemoteVersionUrl = "$HostUrl/plugins/ts-fmod-plugin/$Version/$GameCode/version.txt"
+
+    try {
+        Write-Host "Đang lấy thông tin khả năng tương thích của plugin từ server..."
+        $JsonResponse = (Invoke-WebRequest -Uri $RemoteVersionUrl -UseBasicParsing -TimeoutSec 5).Content
+        
+        $RemoteData = ConvertFrom-Json $JsonResponse
+        $TargetGameVer = $RemoteData.version
+        
+        Write-Host "Phiên bản plugin trên server: $TargetGameVer" -ForegroundColor Cyan
+    } catch {
+        Write-Host "Cảnh báo: Không thể xác minh phiên bản với server. Tiếp tục cài đặt..." -ForegroundColor Yellow
+        $TargetGameVer = $LocalGameVer
+    }
+
+    if ($LocalGameVer -ne $TargetGameVer) {
+        Write-Host "Cảnh báo: Phiên bản không khớp! Game của bạn là $LocalGameVer nhưng plugin được xây dựng cho $TargetGameVer." -ForegroundColor Yellow
+        Write-Host "Mod có thể không hoạt động đúng." -ForegroundColor Yellow
+
+        $Continue = Read-Host "Bạn có muốn tiếp tục cài đặt không? (Y/N)"
+        if ($Continue -match "^[Nn]" -or [string]::IsNullOrEmpty($Continue)) {
+            Write-Host "Cài đặt đã bị hủy bởi người dùng." -ForegroundColor Red
+            return
+        }
+    } else {
+        Write-Host "Kiểm tra phiên bản thành công. Game và plugin khớp hoàn hảo." -ForegroundColor Green
+    }
     
     Write-Host "----------------------------------------"
-    Write-Host "Installing HG Logistics navigation voice mod for $GameName..."
+    Write-Host "Đang cài đặt HG Logistics navigation voice mod cho $GameName..."
     
     if (-not (Test-Path $TargetDir)) {
         New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
@@ -81,6 +129,13 @@ function Install-Mod($GameName, $GameRoot, $GameCode) {
     $SelectedBankPath = Join-Path $TargetDir "selected.bank.txt"
     $SelectedBankContent = (Invoke-WebRequest -Uri "$HostUrl/plugins/ts-fmod-plugin/$Version/selected.bank.txt" -UseBasicParsing).Content
     $RemoteLines = $SelectedBankContent -split '\r?\n' | Where-Object { $_.Trim() -ne "" }
+
+    foreach ($Line in $RemoteLines) {
+        $CleanLine = $Line.Trim()
+        if ($LocalLines.Trim() -notcontains $CleanLine) {
+            Add-Content -Path $SelectedBankPath -Value $CleanLine
+        }
+    }
 
     if (Test-Path $SelectedBankPath) {
         $LocalLines = Get-Content $SelectedBankPath
@@ -105,7 +160,7 @@ function Install-Mod($GameName, $GameRoot, $GameCode) {
         $RemoteContent -replace $RegexPattern, $ReplacePattern | Set-Content $SoundLevelsPath
     }
     
-    Write-Host "$GameName installation complete." -ForegroundColor Green
+    Write-Host "Cài đặt mod cho $GameName hoàn tất." -ForegroundColor Green
 }
 
 if (-not $Ets2Root -or -not (Test-Path $Ets2Root)) {
@@ -115,7 +170,7 @@ if (-not $Ets2Root -or -not (Test-Path $Ets2Root)) {
 if ($Ets2Root -and (Test-Path $Ets2Root)) {
     Install-Mod "Euro Truck Simulator 2" $Ets2Root "ETS2"
 } else {
-    Write-Host "ETS2 installation skipped." -ForegroundColor Cyan
+    Write-Host "Bỏ qua cài đặt ETS2." -ForegroundColor Cyan
 }
 
 if (-not $AtsRoot -or -not (Test-Path $AtsRoot)) {
@@ -125,5 +180,5 @@ if (-not $AtsRoot -or -not (Test-Path $AtsRoot)) {
 if ($AtsRoot -and (Test-Path $AtsRoot)) {
     Install-Mod "American Truck Simulator" $AtsRoot "ATS"
 } else {
-    Write-Host "ATS installation skipped." -ForegroundColor Cyan
+    Write-Host "Bỏ qua cài đặt ATS." -ForegroundColor Cyan
 }
