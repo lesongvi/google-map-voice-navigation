@@ -1,0 +1,10 @@
+.cache/
+.unsaved/
+.user/
+*.user
+
+build/
+output/
+
+*.bak
+*.tmp
